@@ -2,7 +2,6 @@
 
 const pmx = require('pmx')
 const pm2 = require('pm2')
-const consul = require('./lib/consul')
 const promClient = require('prom-client')
 const AggregatorRegistry = promClient.AggregatorRegistry
 
@@ -47,8 +46,30 @@ pmx.initModule({
 }, function (err, conf) {
     if (err) return console.error(err)
 
-    const sendWokerRequest = (id, requestId) => {
 
+
+    function closePM2() {
+        Log.info("Killing pm2 daemon")
+        pm2.killDaemon(() => {
+            Log.info("Killed pm2 daemon")
+            pm2.disconnect()
+        })
+    }
+
+    pm2.connect(() => {
+        setInterval(() => {
+            pm2.list((err, list) => {
+                if (!list.every(process => {
+                        return process.pm2_env.status === 'online'
+                    })) {
+                    closePM2()
+                }
+            })
+        }, 100)
+    })
+
+
+    const sendWokerRequest = (id, requestId) => {
         pm2.sendDataToProcessId({
             id: id,
             type: GET_METRICS_REQ,
@@ -156,24 +177,5 @@ pmx.initModule({
     app.listen(conf.port, err => {
         if (err) console.error('server start error', err)
         console.log('server listen on', conf.port)
-
-        if (conf.register_mode === 'cluster') {
-            consul.startRegister(conf)
-        } else {
-            consul.deregister(conf)
-
-            pm2.list((err, apps) => {
-                if (err) return res.end(err.message)
-    
-                const workers = apps.filter(app => {
-                    return typeof app.pm2_env.axm_options.isModule === 'undefined'
-                        && conf.app_name.indexOf(app.name) !== -1
-                })
-    
-                workers.forEach(worker => {
-                    consul.startRegister(conf, worker.pm_id)
-                })
-            })
-        }
     })
 })
