@@ -49,9 +49,9 @@ pmx.initModule({
 
 
     function closePM2() {
-        Log.info("Killing pm2 daemon")
+       console.log("Killing pm2 daemon")
         pm2.killDaemon(() => {
-            Log.info("Killed pm2 daemon")
+           console.log("Killed pm2 daemon")
             pm2.disconnect()
         })
     }
